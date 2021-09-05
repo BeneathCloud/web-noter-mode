@@ -116,25 +116,29 @@
                         (plist-get tab :webSocketDebuggerUrl))
                       (-filter (lambda (tab)
                                  (string-equal url (plist-get tab :url)))
-                               tabs)))))
+                               tabs))))
+            (buf (current-buffer)))
       (websocket-open ws-url
                       :on-open
                       (lambda (ws)
-                        (message "Socket opened")
-                        (setf (web-noter--google-chrome-socket browser) ws)
-                        (setq web-noter--browser-handler browser)
-                        (web-noter--send browser "Debugger.enable"))
+                        (with-current-buffer buf
+                          (message "Socket opened")
+                          (setf (web-noter--google-chrome-socket browser) ws)
+                          (setq web-noter--browser-handler browser)
+                          (web-noter--send browser "Debugger.enable")))
                       :on-message
                       (lambda (ws frame)
+                        (with-current-buffer buf
                         (let* ((data (web-noter--json-decode
                                       (websocket-frame-payload frame)))
                                (id (plist-get data :id)))
                           (when (numberp id)
-                              (web-noter--run-hook id data))))
+                              (web-noter--run-hook id data)))))
                       :on-close
                       (lambda (ws)
+                        (with-current-buffer buf
                         (message "Socket closed")
-                        (setf (web-noter--google-chrome-socket browser) nil)
+                        (setf (web-noter--google-chrome-socket browser) nil))
                         (setq web-noter--browser-handler nil)))
     (message "Open socket failed")))
 
