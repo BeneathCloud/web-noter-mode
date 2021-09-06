@@ -27,7 +27,7 @@
 (defvar-local web-noter--website-handler nil)
 (defvar web-noter--msg-id 0)
 
-(defcustom web-noter-browser 'google-chrome
+(defcustom web-noter-browser 'chromium
   "backend"
   :group 'web-noter)
 
@@ -83,20 +83,20 @@
 
 ;; Browsers
 
-(cl-defstruct web-noter--google-chrome
+(cl-defstruct web-noter--chromium
   (host "127.0.0.1")
   (port 9222)
   (socket nil))
 
 (cl-defgeneric web-noter--open (browser url))
 
-(cl-defmethod web-noter--open ((browser web-noter--google-chrome) url)
+(cl-defmethod web-noter--open ((browser web-noter--chromium) url)
   (cond ((eq system-type 'darwin)
-         (shell-command (concat "open -a \"/Applications/Google Chrome.app\" \""
+         (shell-command (concat "open -a chromium --args \"--remote-debugging-port=9222\" \""
                                 url
                                 "\""))))
-  (if-let* ((host (web-noter--google-chrome-host browser))
-            (port (web-noter--google-chrome-port browser))
+  (if-let* ((host (web-noter--chromium-host browser))
+            (port (web-noter--chromium-port browser))
             (tabs (let* ((url-request-method "GET")
                          (url-http-attempt-keepalives nil)
                          (url (url-parse-make-urlobj
@@ -123,7 +123,7 @@
                       (lambda (ws)
                         (with-current-buffer buf
                           (message "Socket opened")
-                          (setf (web-noter--google-chrome-socket browser) ws)
+                          (setf (web-noter--chromium-socket browser) ws)
                           (setq web-noter--browser-handler browser)
                           (web-noter--send browser "Debugger.enable")))
                       :on-message
@@ -138,16 +138,16 @@
                       (lambda (ws)
                         (with-current-buffer buf
                         (message "Socket closed")
-                        (setf (web-noter--google-chrome-socket browser) nil))
+                        (setf (web-noter--chromium-socket browser) nil))
                         (setq web-noter--browser-handler nil)))
     (message "Open socket failed")))
 
 
 (cl-defgeneric web-noter--close (browser))
 
-(cl-defmethod web-noter--close ((browser web-noter--google-chrome))
-  (websocket-close (web-noter--google-chrome-socket browser))
-  (setf (web-noter--google-chrome-socket browser) nil)
+(cl-defmethod web-noter--close ((browser web-noter--chromium))
+  (websocket-close (web-noter--chromium-socket browser))
+  (setf (web-noter--chromium-socket browser) nil)
   (setq web-noter--browser-handler nil))
 
 
@@ -156,17 +156,17 @@
   "Send message to BROWSER")
 
 (cl-defmethod web-noter--send
-  ((browser web-noter--google-chrome)
+  ((browser web-noter--chromium)
    method &optional params callback)
   (let ((id (web-noter--get-msg-id)))
     (when callback
       (web-noter--add-hook id callback))
-    (websocket-send-text (web-noter--google-chrome-socket browser)
+    (websocket-send-text (web-noter--chromium-socket browser)
                          (web-noter--json-encode (list :id id
                                                   :method method
                                                   :params params)))))
 
-(defun web-noter--google-chrome-rpc-decode (data)
+(defun web-noter--chromium-rpc-decode (data)
   (let* ((res (plist-get data :result))
          (was-thrown (plist-get res :wasThrown))
          (result (plist-get res :result))
@@ -182,13 +182,13 @@
 (cl-defgeneric web-noter--inject (browser code &optional callback)
   "Inject JS code into BROWSER with callback CALLBACK to be executed later")
 
-(cl-defmethod web-noter--inject ((browser web-noter--google-chrome)
+(cl-defmethod web-noter--inject ((browser web-noter--chromium)
                                  code &optional callback)
   (web-noter--send browser "Runtime.evaluate"
                    (list :expression code
                          :returnByValue t)
                    (lambda (data)
-                     (let ((return-value (web-noter--google-chrome-rpc-decode data)))
+                     (let ((return-value (web-noter--chromium-rpc-decode data)))
                        (if callback
                            (funcall callback return-value)
                          return-value)))))
@@ -247,7 +247,7 @@
 
 (defun web-noter-mode-enter ()
   (if-let* ((browser (cond
-                      ((eq web-noter-browser 'google-chrome) (make-web-noter--google-chrome))))
+                      ((eq web-noter-browser 'chromium) (make-web-noter--chromium))))
             (url (web-noter--get-ref))
             (website (web-noter--determine-website url)))
       (progn
