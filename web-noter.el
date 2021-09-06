@@ -20,6 +20,7 @@
 (require 'dash)
 (require 'cl-generic)
 (require 'org)
+(require 'org-roam)
 
 ;; Variables
 
@@ -44,7 +45,9 @@
     (json-read-from-string p)))
 
 (defun web-noter--get-ref ()
-  (org-entry-get (point-min) "ROAM_REFS"))
+  (or (org-entry-get (point-min) "ROAM_REFS")
+      (progn (org-roam-ref-add (read-string "REF: "))
+             (org-entry-get (point-min) "ROAM_REFS"))))
 
 (defun web-noter--get-msg-id ()
   (setq web-noter--msg-id (+ 1 web-noter--msg-id)))
